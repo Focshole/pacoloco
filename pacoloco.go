@@ -111,6 +111,8 @@ func main() {
 		prefetchTicker := setupPrefetchTicker()
 		defer prefetchTicker.Stop()
 		setupPrefetch() // enable refresh
+	} else {
+		log.Print("Prefetching is disabled.")
 	}
 
 	if config.PurgeFilesAfter != 0 {
