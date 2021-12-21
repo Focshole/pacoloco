@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
@@ -189,7 +190,6 @@ func addFileToTarWriter(pkgName string, content string, tarWriter *tar.Writer) {
 }
 
 // Uncompresses a gzip file
-// TODO set some limits to avoid OOM with gzip bombs in uncompressGZ.
 func TestUncompressGZ(t *testing.T) {
 	err := uncompressGZ("nope", "nope")
 	tmpDir := testSetupHelper(t)
@@ -219,6 +219,47 @@ func TestUncompressGZ(t *testing.T) {
 		log.Fatal(err)
 	}
 }
+
+func TestUncompressGZBomb(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping testing in short mode")
+	}
+	tmpDir := testSetupHelper(t)
+	filePath := path.Join(tmpDir, "test.gz")
+	var gzipBombSize int64
+	gzipBombSize = 120 * 1024 * 1024
+	gzipfile, err := os.Create(filePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	zero, err := os.Open("/dev/zero")
+	if err != nil {
+		t.Skip("Cannot open /dev/zero, skipping gzip bomb test")
+	}
+	defer zero.Close()
+	writer := gzip.NewWriter(gzipfile)
+	reader := io.LimitReader(bufio.NewReader(zero), gzipBombSize)
+	if _, err = io.Copy(writer, reader); err != nil {
+		log.Fatal(err)
+	}
+	writer.Close()
+	err = uncompressGZ(filePath, filePath+".uncompressed")
+	if err != nil {
+		// It is a success if it happens
+		return
+	}
+	fi, err := os.Stat(filePath + ".uncompressed")
+	if err != nil {
+		// It is a success if it happens
+		return
+	}
+	size := fi.Size()
+	if size >= gzipBombSize {
+		log.Fatal("It fully extracted the gzip bomb, this shouldn't happen")
+	}
+
+}
+
 func TestExtractFilenamesFromTar(t *testing.T) {
 	tmpDir := testSetupHelper(t)
 	filePath := path.Join(tmpDir, "test.gz")
@@ -261,16 +302,16 @@ func TestGetPacolocoURL(t *testing.T) {
 	}
 }
 
-func TestBuildRepoPkg(t *testing.T) {
-	got, err := buildRepoPkg("libstdc++5-3.3.6-7-x86_64.pkg.tar.zst", "testRepo", "community")
+func TestBuildMirrorPkg(t *testing.T) {
+	got, err := buildMirrorPkg("libstdc++5-3.3.6-7-x86_64.pkg.tar.zst", "testRepo", "community")
 	if err != nil {
 		log.Fatal(err)
 	}
-	want := RepoPackage{PackageName: "libstdc++5", RepoName: "testRepo", Version: "3.3.6-7", Arch: "x86_64", DownloadURL: "/repo/testRepo/community/libstdc++5-3.3.6-7-x86_64"}
+	want := MirrorPackage{PackageName: "libstdc++5", RepoName: "testRepo", Version: "3.3.6-7", Arch: "x86_64", DownloadURL: "/repo/testRepo/community/libstdc++5-3.3.6-7-x86_64", FileExt: ".pkg.tar.zst"}
 	if !cmp.Equal(got, want) {
 		t.Errorf("Got %v, want %v", got, want)
 	}
-	if _, err = buildRepoPkg("webkit2gtk-2.26.4-1-x86_6-4.pkg.tar.zst", "testRepo", ""); err == nil {
+	if _, err = buildMirrorPkg("webkit2gtk-2.26.4-1-x86_6-4.pkg.tar.zst", "testRepo", ""); err == nil {
 		t.Errorf("Should have thrown an error cause the string is invalid")
 	}
 }
