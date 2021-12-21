@@ -164,7 +164,7 @@ var (
 )
 
 // force resources prefetching
-func prefetchRequest(url string) (err error) {
+func prefetchRequest(url string, optionalCustomPath string) (err error) {
 	urlPath := url
 	matches := pathRegex.FindStringSubmatch(urlPath)
 	if len(matches) == 0 {
@@ -184,7 +184,12 @@ func prefetchRequest(url string) (err error) {
 			return err
 		}
 	}
-	filePath := filepath.Join(cachePath, fileName)
+	var filePath string
+	if optionalCustomPath != "" {
+		filePath = filepath.Join(optionalCustomPath, fileName)
+	} else {
+		filePath = filepath.Join(cachePath, fileName)
+	}
 	// mandatory update when prefetching,
 
 	mutexKey := repoName + ":" + fileName
@@ -296,7 +301,7 @@ func handleRequest(w http.ResponseWriter, req *http.Request) error {
 			if err == nil && config.Prefetch != nil && !strings.HasSuffix(fileName, ".sig") && !strings.HasSuffix(fileName, ".db") {
 				updateDBRequestedFile(repoName, fileName) // update info for prefetching
 			} else if err == nil && config.Prefetch != nil && strings.HasSuffix(fileName, ".db") {
-				addDBfileToDB(repo.URL+path+"/"+fileName, repoName)
+				updateDBRequestedDB(repoName, path, fileName)
 			}
 		} else {
 			for _, url := range repo.URLs {
@@ -305,7 +310,7 @@ func handleRequest(w http.ResponseWriter, req *http.Request) error {
 					if config.Prefetch != nil && !strings.HasSuffix(fileName, ".sig") && !strings.HasSuffix(fileName, ".db") {
 						updateDBRequestedFile(repoName, fileName) // update info for prefetching
 					} else if err == nil && config.Prefetch != nil && strings.HasSuffix(fileName, ".db") {
-						addDBfileToDB(url+path+"/"+fileName, repoName)
+						updateDBRequestedDB(repoName, path, fileName)
 					}
 					break
 				}
