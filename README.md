@@ -54,6 +54,9 @@ repos:
     url: http://pkgbuild.com/~anatolik/quarry/x86_64
   sublime:
     url: https://download.sublimetext.com/arch/stable/x86_64
+  archlinux-reflector:
+    mirrorlist: /etc/pacman.d/reflector_mirrorlist # Be careful! Check that pacoloco URL is NOT included in that file!
+#   mirrorlist_refresh_cron: 0 0 3 * * * * # Optional, it is being refreshed before prefetching. Use this setting if you do not use prefetching or you want to update it more often
 prefetch: # optional section, add it if you want to enable prefetching
   cron: 0 0 3 * * * * # standard cron expression (https://en.wikipedia.org/wiki/Cron#CRON_expression) to define how frequently prefetch, see https://github.com/gorhill/cronexpr#implementation for documentation.
   ttl_unaccessed_in_days: 30  # defaults to 30, set it to a higher value than the number of consecutive days you don't update your systems
@@ -76,12 +79,15 @@ Once the pacoloco server is up and running it is time to configure the user host
 
 ```conf
 [core]
+Include = /etc/pacman.d/pacoloco-mirrorlist
 Include = /etc/pacman.d/mirrorlist
 
 [extra]
+Include = /etc/pacman.d/pacoloco-mirrorlist
 Include = /etc/pacman.d/mirrorlist
 
 [community]
+Include = /etc/pacman.d/pacoloco-mirrorlist
 Include = /etc/pacman.d/mirrorlist
 
 [quarry]
@@ -91,13 +97,15 @@ Server = http://yourpacoloco:9129/repo/quarry
 Server = http://yourpacoloco:9129/repo/sublime
 ```
 
-And `/etc/pacman.d/mirrorlist` with
+And `/etc/pacman.d/pacoloco-mirrorlist` with
 
 ```yaml
 Server = http://yourpacoloco:9129/repo/archlinux/$repo/os/$arch
 ```
 
 That's it. Since now pacman requests will be proxied through our pacoloco server.
+
+If you prefer, you can modify directly `/etc/pacman.d/mirrorlist`, but in such a case remember to not run programs which overwrite that file, such as reflector (with its default configuration).
 
 ## Handling multiple architectures
 
@@ -118,7 +126,7 @@ repos:
     url: http://mirror.clarkson.edu/archlinux32
 ```
 
-Then modify user's `/etc/pacman.d/mirrorlist` and add
+Then modify user's `/etc/pacman.d/pacoloco-mirrorlist` and add
 
 For x86_64:
 

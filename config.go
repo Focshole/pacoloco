@@ -16,8 +16,10 @@ const DefaultTTLUnupdated = 200
 const DefaultDBName = "sqlite-pkg-cache.db"
 
 type Repo struct {
-	URL  string   `yaml:"url"`
-	URLs []string `yaml:"urls"`
+	URL            string   `yaml:"url"`
+	URLs           []string `yaml:"urls"`
+	Mirrorlist     string   `yaml:"mirrorlist"`
+	MirrorlistCron string   `yaml:"mirrorlist_refresh_cron"`
 }
 
 type RefreshPeriod struct {
@@ -53,8 +55,28 @@ func parseConfig(raw []byte) *Config {
 		if repo.URL != "" && len(repo.URLs) > 0 {
 			log.Fatalf("repo '%v' specifies both url and urls parameters, please use only one of them", name)
 		}
-		if repo.URL == "" && len(repo.URLs) == 0 {
-			log.Fatalf("please specify url for repo '%v'", name)
+		if repo.URL != "" && repo.Mirrorlist != "" {
+			log.Fatalf("repo '%v' specifies both url and mirrorlist parameter, please use only one of them", name)
+		}
+		if len(repo.URLs) > 0 && repo.Mirrorlist != "" {
+			log.Fatalf("repo '%v' specifies both urls and mirrorlist parameter, please use only one of them", name)
+		}
+		if repo.URL == "" && len(repo.URLs) == 0 && repo.Mirrorlist == "" {
+			log.Fatalf("please specify url(s) or mirrorlist for repo '%v'", name)
+		}
+		// validate Mirrorlist config
+		if repo.Mirrorlist != "" && unix.Access(repo.Mirrorlist, unix.R_OK) != nil {
+			u, err := user.Current()
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Fatalf("mirrorlist file %v for repo %v does not exist or isn't readable for user %v", repo.Mirrorlist, name, u.Username)
+		}
+		// MirrorlistCron is optional
+		if repo.Mirrorlist != "" && repo.MirrorlistCron != "" {
+			if _, err := cronexpr.Parse(repo.MirrorlistCron); err != nil {
+				log.Fatalf("Invalid cron string in repo %v (if you don't know how to compose them, there are many online utilities for doing so). Please check https://github.com/gorhill/cronexpr#implementation for documentation.", name)
+			}
 		}
 	}
 
@@ -69,6 +91,7 @@ func parseConfig(raw []byte) *Config {
 		}
 		log.Fatalf("directory %v does not exist or isn't writable for user %v", result.CacheDir, u.Username)
 	}
+
 	// validate Prefetch config
 
 	if result.Prefetch != nil {
